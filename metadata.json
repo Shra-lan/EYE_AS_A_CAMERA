@@ -1,7 +1,7 @@
 {
   "name": "Remix: The Eye as a Camera",
   "description": "An interactive educational web application comparing the human eye to a digital camera, featuring anatomy mapping and visual simulations.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

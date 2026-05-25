@@ -14,6 +14,42 @@ export function OcularOpticsSimulator() {
   const [aperture, setAperture] = useState(2.8); // f-stop
   const [patientAge, setPatientAge] = useState(25); // For presbyopia
 
+  const [useCamera, setUseCamera] = useState(false);
+  const [useChromatic, setUseChromatic] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    let activeStream: MediaStream | null = null;
+    let isMounted = true;
+
+    if (useCamera) {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          if (!isMounted) {
+            stream.getTracks().forEach(track => track.stop());
+            return;
+          }
+          activeStream = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        })
+        .catch(err => {
+          if (isMounted) {
+            console.error("Camera access error:", err);
+            setUseCamera(false); // Revert if camera access fails
+          }
+        });
+    }
+
+    return () => {
+      isMounted = false;
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [useCamera]);
+
   // Derived optics physics (simplified for visual simulation)
   // Eye mode: Eye tries to adjust f to keep v_focused == vActual.
   // Base optical power of human eye is around 60D. 
@@ -125,12 +161,40 @@ export function OcularOpticsSimulator() {
         <div className="w-full lg:w-80 bg-slate-900 border-r border-slate-800 p-6 flex flex-col gap-6 overflow-y-auto max-h-[800px]">
           
           <div className="space-y-4">
-             <h3 className="text-xs uppercase text-slate-500 font-bold tracking-wider mb-2">Presets</h3>
-             <div className="grid grid-cols-2 gap-2 text-xs">
-                <button onClick={() => applyPreset('NORMAL')} className="bg-slate-800 hover:bg-slate-700 p-2 rounded border border-slate-700 transition">Normal Vision</button>
-                <button onClick={() => applyPreset('MYOPIA')} className="bg-slate-800 hover:bg-slate-700 p-2 rounded border border-slate-700 transition">Myopia</button>
-                <button onClick={() => applyPreset('HYPEROPIA')} className="bg-slate-800 hover:bg-slate-700 p-2 rounded border border-slate-700 transition">Hypermetropia</button>
-                <button onClick={() => applyPreset('PRESBYOPIA')} className="bg-slate-800 hover:bg-slate-700 p-2 rounded border border-slate-700 transition">Presbyopia (Age 65)</button>
+             <h3 className="text-xs uppercase text-slate-500 font-bold tracking-wider mb-2">Options & Presets</h3>
+             
+             <div className="flex flex-col gap-2 mb-4">
+               <label className="flex items-center gap-2 text-sm text-slate-300 font-medium cursor-pointer">
+                 <input type="checkbox" checked={useCamera} onChange={(e) => setUseCamera(e.target.checked)} className="rounded bg-slate-800 border-slate-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900" />
+                 USE LIVE CAMERA FEED
+               </label>
+               <label className="flex items-center gap-2 text-sm text-slate-300 font-medium cursor-pointer">
+                 <input type="checkbox" checked={useChromatic} onChange={(e) => setUseChromatic(e.target.checked)} className="rounded bg-slate-800 border-slate-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900" />
+                 CHROMATIC ABERRATION
+               </label>
+             </div>
+
+             <div className="flex flex-col gap-2">
+                <button onClick={() => applyPreset('NORMAL')} className="text-left bg-slate-800 hover:bg-slate-700 p-3 rounded-lg border border-slate-700 transition">
+                  <div className="text-sm font-bold text-slate-200">Normal Vision (Emmetropia)</div>
+                  <div className="text-xs text-slate-400 mt-1">Parallel light rays converge perfectly onto the retina.</div>
+                </button>
+                <button onClick={() => applyPreset('MYOPIA')} className="text-left bg-slate-800 hover:bg-slate-700 p-3 rounded-lg border border-slate-700 transition">
+                  <div className="text-sm font-bold text-slate-200">Patient A: Severe Myopia</div>
+                  <div className="text-xs text-slate-400 mt-1">Elongated eyeball causing focus in front. Requires concave lens.</div>
+                </button>
+                <button onClick={() => applyPreset('HYPEROPIA')} className="text-left bg-slate-800 hover:bg-slate-700 p-3 rounded-lg border border-slate-700 transition">
+                  <div className="text-sm font-bold text-slate-200">Patient B: Hypermetropia</div>
+                  <div className="text-xs text-slate-400 mt-1">Shortened eyeball causing focus behind. Requires convex lens.</div>
+                </button>
+                <button onClick={() => applyPreset('PRESBYOPIA')} className="text-left bg-slate-800 hover:bg-slate-700 p-3 rounded-lg border border-slate-700 transition">
+                   <div className="text-sm font-bold text-slate-200">Patient C: Presbyopia (Age 65)</div>
+                   <div className="text-xs text-slate-400 mt-1">Loss of lens elasticity prevents near focus accommodation.</div>
+                </button>
+                <button onClick={() => applyPreset('CAMERA')} className="text-left bg-slate-800 hover:bg-slate-700 p-3 rounded-lg border border-slate-700 transition">
+                   <div className="text-sm font-bold text-slate-200">Camera: Manual Focus</div>
+                   <div className="text-xs text-slate-400 mt-1">Focal length is fixed. Sensor distance changes to focus.</div>
+                </button>
              </div>
           </div>
 
@@ -219,13 +283,28 @@ export function OcularOpticsSimulator() {
              
              {/* Simulated blurred image on retina */}
              <div className="relative flex items-center justify-center w-full h-full">
-                <span className="text-white font-serif text-6xl tracking-widest transition-all duration-300 pointer-events-none"
+                {useCamera ? (
+                   <video 
+                      ref={videoRef}
+                      autoPlay 
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover transition-all duration-300"
                       style={{ 
-                          filter: `blur(${blurRadius}px)`,
+                          filter: `blur(${blurRadius}px) ${useChromatic && blurRadius > 1 ? 'hue-rotate(20deg) saturate(1.5)' : ''}`,
                           opacity: Math.max(0.2, 1 - (blurRadius / 30))
-                      }}>
-                   VISION
-                </span>
+                      }}
+                   />
+                ) : (
+                   <span className="text-white font-serif text-6xl tracking-widest transition-all duration-300 pointer-events-none"
+                         style={{ 
+                             filter: `blur(${blurRadius}px)`,
+                             textShadow: (useChromatic && blurRadius > 1) ? `${blurRadius}px 0 0 rgba(255,0,0,0.5), -${blurRadius}px 0 0 rgba(0,0,255,0.5)` : 'none',
+                             opacity: Math.max(0.2, 1 - (blurRadius / 30))
+                         }}>
+                      VISION
+                   </span>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900/50 to-transparent mix-blend-multiply pointer-events-none"/>
              </div>
           </div>
